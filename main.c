@@ -1,3 +1,4 @@
+// Главный файл проекта
 #include <stdio.h>
 
 int main(void){
