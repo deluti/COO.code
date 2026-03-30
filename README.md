@@ -1,25 +1,395 @@
 # Mini-Git: Персистентная система контроля версий
 
-Легковесная система контроля версий, реализующая персистентные структуры данных, структурное разделение (structural sharing) и адресацию по содержимому. Создана для образовательных целей и понимания внутреннего устройства Git.
+Учебная реализация Git-подобной системы версионирования на языке C.  
+Демонстрирует персистентность данных, структурное разделение (structural sharing) и адресацию по содержимому.
 
 ---
 
-## 📋 Содержание
+## Содержание
+
 - [Обзор архитектуры](#обзор-архитектуры)
-- [Структура хранения](#структура-хранения)
-- [Основные компоненты](#основные-компоненты)
-- [Поток данных](#поток-данных)
+- [Структура репозитория](#структура-репозитория)
+- [Компоненты системы](#компоненты-системы)
+- [Structural Sharing — как это работает](#structural-sharing--как-это-работает)
 - [Операции](#операции)
 - [Пример работы](#пример-работы)
 - [Экономия памяти](#экономия-памяти)
-- [Практические замечания](#практические-замечания)
+- [Реализация на C](#реализация-на-c)
 
 ---
 
-## 🏗 Обзор архитектуры
+## Обзор архитектуры
 
-Mini-Git реализует три ключевые концепции Git:
+Mini-Git строится на трёх ключевых принципах:
 
-1. **Персистентность данных** — каждый коммит неизменяем и остается доступным
-2. **Структурное разделение** — неизмененные файлы никогда не копируются, только ссылаются
-3. **Адресация по содержимому** — файлы идентифицируются по хешу их содержимого
+| Принцип | Описание |
+|---|---|
+| **Персистентность** | Каждый коммит неизменяем и всегда доступен |
+| **Structural Sharing** | Неизменённые файлы не копируются, а берутся по ссылке |
+| **Адресация по содержимому** | Файлы идентифицируются по SHA-1 хешу содержимого |
+
+---
+
+## Структура репозитория
+
+```
+repo_name/
+│
+├── objects/                        # Хранилище всех файлов по хешам
+│   ├── a1b2c3d4e5f6...            # Содержимое файла (имя = SHA-1 хеш)
+│   ├── f6e5d4c3b2a1...
+│   └── ...
+│
+├── commits/                        # Все коммиты
+│   ├── commit_1/
+│   │   ├── info.json              # Метаданные коммита
+│   │   └── tree.json              # Структура директорий
+│   ├── commit_2/
+│   │   ├── info.json
+│   │   └── tree.json
+│   └── ...
+│
+├── refs/                           # Ссылки на коммиты (ветки)
+│   └── heads/
+│       ├── master                 # Файл с номером текущего коммита ветки
+│       └── feature
+│
+└── HEAD                            # Текущая ветка ("refs/heads/master")
+```
+
+---
+
+## Компоненты системы
+
+### 1. Хранилище объектов `objects/`
+
+Все файлы хранятся **один раз**, имя файла = SHA-1 хеш его содержимого.
+
+```
+objects/
+├── a1b2c3d4e5f67890...    # "hello world"
+├── f6e5d4c3b2a10987...    # "goodbye world"
+└── 1234567890abcdef...    # "int main() { return 0; }"
+```
+
+**Преимущества:**
+- Одинаковые файлы хранятся единожды (дедупликация)
+- Целостность данных проверяется через хеш
+- Изменить файл незаметно невозможно — изменится хеш
+
+---
+
+### 2. Метаданные коммита `info.json`
+
+```json
+{
+  "id": 2,
+  "parent": 1,
+  "children": [3, 5],
+  "timestamp": 1701234567,
+  "message": "Добавлен новый файл",
+  "author": "Ivan",
+  "deleted_files": [
+    "old_file.txt"
+  ]
+}
+```
+
+| Поле | Описание |
+|---|---|
+| `id` | Номер коммита |
+| `parent` | Номер родительского коммита (`null` для первого) |
+| `children` | Массив номеров дочерних коммитов (для ветвления) |
+| `timestamp` | Unix-время создания |
+| `message` | Сообщение коммита |
+| `author` | Автор |
+| `deleted_files` | Файлы, явно удалённые в этом коммите |
+
+> Поле `deleted_files` необходимо, чтобы отличить **"файл не изменился"** (берём у родителя) от **"файл удалён"** (не берём ни у кого).
+
+---
+
+### 3. Структура директорий `tree.json`
+
+```json
+{
+  "src": {
+    "type": "directory",
+    "content": {
+      "main.c": {
+        "type": "file",
+        "hash": "a1b2c3d4e5f6...",
+        "size": 1024
+      },
+      "utils": {
+        "type": "directory",
+        "content": {
+          "helper.c": {
+            "type": "file",
+            "hash": "f6e5d4c3b2a1...",
+            "size": 512
+          }
+        }
+      }
+    }
+  },
+  "README.md": {
+    "type": "file",
+    "hash": "1234567890ab...",
+    "size": 256
+  }
+}
+```
+
+- Поддерживает вложенные директории любой глубины
+- Каждый файл хранит хеш своего содержимого из `objects/`
+- Директории содержат вложенные записи рекурсивно
+
+---
+
+### 4. Ветки `refs/heads/`
+
+Ветка — это просто файл с номером коммита:
+
+```
+refs/heads/master   →   содержимое: "3"
+refs/heads/feature  →   содержимое: "5"
+```
+
+---
+
+## Structural Sharing — как это работает
+
+```
+Коммит 1 (начальный)
+└── tree.json
+    ├── src/
+    │   ├── main.c  →  hash_A  ──┐
+    │   └── utils.c →  hash_B  ──┤──► objects/
+    └── README.md   →  hash_C  ──┘
+
+Коммит 2 (изменён только main.c)
+└── tree.json
+    ├── src/
+    │   ├── main.c  →  hash_D  ──────► objects/ (НОВЫЙ объект)
+    │   └── utils.c →  hash_B  ──────► objects/ (ССЫЛКА, не копия!)
+    └── README.md   →  hash_C  ──────► objects/ (ССЫЛКА, не копия!)
+
+Итог: создан 1 новый объект вместо 3. Экономия — 67%.
+```
+
+**Принцип:**
+- Новые и изменённые файлы → новый объект в `objects/`
+- Неизменённые файлы → хеш из `tree.json` указывает на уже существующий объект
+- При удалении → файл добавляется в `deleted_files` в `info.json`
+
+---
+
+## Операции
+
+### Инициализация
+Создаёт структуру папок, пустое хранилище объектов, ветку `master`.
+
+### Создание коммита
+1. Вычислить SHA-1 хеш для каждого нового/изменённого файла
+2. Сохранить новые объекты в `objects/` (если ещё не существуют)
+3. Построить `tree.json` — новые файлы с новыми хешами, неизменённые со старыми
+4. Создать `info.json` с `parent` = текущий коммит, заполнить `children` у родителя
+5. Обновить файл ветки в `refs/heads/`
+
+### Получение файла из любой версии
+1. Загрузить `tree.json` нужного коммита
+2. Пройти по пути (например, `src/main.c`)
+3. Получить хеш файла
+4. Прочитать содержимое из `objects/<hash>`
+
+### Удаление файла
+1. Добавить имя файла в `deleted_files` нового `info.json`
+2. В `tree.json` нового коммита этот файл не упоминается
+
+### Восстановление полного состояния коммита
+Идём по цепочке `parent` вверх, собирая файлы. Файлы из более новых коммитов имеют приоритет. Файлы из `deleted_files` не берём ни у одного предка.
+
+### Ветвление
+- Создать файл `refs/heads/<имя>` с номером текущего коммита
+- В `info.json` текущего коммита добавить номер нового дочернего коммита в `children`
+
+### Слияние
+1. Найти общего предка двух веток
+2. Сравнить деревья обеих веток с деревом предка
+3. Создать новый `tree.json` — объединённую структуру
+4. Создать `info.json` с двумя родителями
+5. Добавить новый коммит в `children` обоих родителей
+
+---
+
+## Пример работы
+
+### Шаг 1 — первый коммит
+
+```
+objects/
+└── a1b2c3...     # README.md
+
+commits/
+└── commit_1/
+    ├── info.json
+    │     { "id": 1, "parent": null, "children": [], "message": "Initial commit", "deleted_files": [] }
+    └── tree.json
+          { "README.md": { "type": "file", "hash": "a1b2c3...", "size": 14 } }
+
+refs/heads/master → 1
+```
+
+### Шаг 2 — изменён `README.md`
+
+```
+objects/
+├── a1b2c3...     # Старый README.md (остался!)
+└── d4e5f6...     # Новый README.md (только он создан)
+
+commits/
+├── commit_1/     # Без изменений
+└── commit_2/
+    ├── info.json
+    │     { "id": 2, "parent": 1, "children": [], "message": "Update README", "deleted_files": [] }
+    └── tree.json
+          { "README.md": { "type": "file", "hash": "d4e5f6...", "size": 11 } }
+
+refs/heads/master → 2
+```
+
+### Шаг 3 — ветка `feature`, добавлен `feature.txt`, удалён `README.md`
+
+```
+commits/
+└── commit_3/
+    ├── info.json
+    │     {
+    │       "id": 3, "parent": 2, "children": [],
+    │       "message": "Add feature, remove README",
+    │       "deleted_files": ["README.md"]
+    │     }
+    └── tree.json
+          {
+            "feature.txt": { "type": "file", "hash": "g7h8i9...", "size": 7 }
+          }
+
+refs/heads/master  → 2
+refs/heads/feature → 3
+```
+
+> `README.md` в `tree.json` commit_3 отсутствует и явно указан в `deleted_files` — значит он удалён, а не унаследован от родителя.
+
+---
+
+## Экономия памяти
+
+| Сценарий | Без sharing | С sharing | Экономия |
+|---|---|---|---|
+| Изменение 1 файла из 10 | 10 объектов | 1 объект | **90%** |
+| Добавление файла в проект из 100 | 101 объект | 1 объект | **99%** |
+| Удаление файла | 100 объектов | 0 объектов | **100%** |
+| 10 коммитов, каждый меняет 1 из 100 | 1000 объектов | 109 объектов | **89%** |
+
+Формула:
+```
+Экономия = 100% - (новых_объектов / объектов_при_полном_копировании) × 100%
+```
+
+---
+
+## Реализация на C
+
+### Основные структуры
+
+```c
+// Узел дерева директорий
+typedef struct tree_node {
+    char *name;
+    int type;               // 0 = файл, 1 = директория
+    char *hash;             // для файлов: хеш из objects/
+    size_t size;
+    struct tree_node **children;
+    int child_count;
+} tree_node_t;
+
+// Коммит
+typedef struct commit {
+    int id;
+    int parent_id;          // -1 если корневой
+    int *children;
+    int child_count;
+    time_t timestamp;
+    char *message;
+    char *author;
+    tree_node_t *root_tree;
+    char **deleted_files;
+    int deleted_count;
+} commit_t;
+
+// Репозиторий
+typedef struct repository {
+    char *path;
+    commit_t *current;
+    char *current_branch;
+} repository_t;
+```
+
+### Основные функции
+
+```c
+repository_t *init_repo();
+commit_t     *add_file(commit_t *current, const char *path, const char *content);
+commit_t     *remove_file(commit_t *current, const char *path);
+commit_t     *commit(commit_t *current, const char *message);
+char         *get_file_content(commit_t *commit, const char *path);
+int           get_file_exists(commit_t *commit, const char *path);
+void          print_commit(commit_t *commit);
+void          print_history(commit_t *commit);
+void          print_files(commit_t *commit);
+void          create_branch(commit_t *commit, const char *name);
+commit_t     *get_branch_head(const char *name);
+commit_t     *merge_simple(commit_t *a, commit_t *b);
+int           count_objects(commit_t *commit);
+void          show_memory_saving(commit_t *before, commit_t *after);
+```
+
+### Вычисление хеша
+
+```c
+char *compute_hash(const unsigned char *content, size_t size) {
+    unsigned char hash[SHA_DIGEST_LENGTH];
+    char *hex = malloc(SHA_DIGEST_LENGTH * 2 + 1);
+    SHA1(content, size, hash);
+    for (int i = 0; i < SHA_DIGEST_LENGTH; i++)
+        sprintf(hex + i * 2, "%02x", hash[i]);
+    return hex;
+}
+```
+
+### Сохранение объекта
+
+```c
+void store_object(const char *hash, const char *content, size_t size) {
+    char path[PATH_MAX];
+    sprintf(path, "objects/%c%c/%s", hash[0], hash[1], hash + 2);
+    create_parent_dirs(path);
+    FILE *f = fopen(path, "wb");
+    fwrite(content, 1, size, f);
+    fclose(f);
+}
+```
+
+---
+
+## Рекомендуемая литература
+
+- [Pro Git — глава 10: Git Internals](https://git-scm.com/book/en/v2/Git-Internals-Plumbing-and-Porcelain)
+- [Wikipedia: Persistent data structure](https://en.wikipedia.org/wiki/Persistent_data_structure)
+- [Git man page: gitinternals](https://git-scm.com/docs/gitinternals)
+- Driscoll et al. — *Making Data Structures Persistent* (1989)
+
+---
+
+*Mini-Git — учебный проект для понимания внутреннего устройства систем контроля версий.*
