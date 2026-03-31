@@ -2,6 +2,6 @@
 #include <stdio.h>
 
 int main(void){
-    printf("Витя калоед");
+    printf("Ваня калоед");
     return 0;
 }
