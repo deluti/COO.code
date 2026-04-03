@@ -14,8 +14,10 @@ int check_directory(char *directory_path){
         printf("> Desired directory not found. Attempt to create...\n");
         if (_mkdir("repositories") == 0){
             printf(GREEN "> Directory created. Welcome to COO.code!\n" RESET);
+            return 0;
         } else {
-            perror(RED "[ERROR] Filed to create folder.\n" RESET);
+            perror(RED "[ERROR] Failed to create folder.\n" RESET);
+            return 1;
         }
     }
 }
