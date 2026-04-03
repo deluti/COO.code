@@ -1,0 +1,5 @@
+*.exe
+*.o
+*.obj
+*.exe.stuckdump
+/vscode/
