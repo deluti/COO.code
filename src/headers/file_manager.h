@@ -1,6 +1,6 @@
 // Файл с функциями КУ.кода
 #include <stdio.h>
-
+#include "commit_manager.h"
 // Создаёт пустой репозиторий и возвращает начальный (пустой) коммит.
 // Старый коммит остаётся без изменений.
 int init_repo(char *repo_name);
@@ -13,7 +13,7 @@ int add_file(char *repo_name, char *file_path);
 int remove_file(char *repo_name, char *file_path);
 
 // Принимает коммит и путь к файлу. Возвращает содержимое файла в этой версии (строку) или NULL, если файла нет.
-int get_file_content(char *commit, char *file_path);
+char* get_file_content(char *commit, char *file_path);
 
 // Принимает коммит и путь. Возвращает true/false — есть ли файл в этой версии.
 int get_file_exists(char *commit, char *file_path);
