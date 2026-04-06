@@ -5,6 +5,44 @@
 #include <direct.h>
 #include <string.h>
 #include <stdio.h>
+#include <errno.h>
+
+// Функция для рекурсивного создания директорий
+int mkdir_recursive(const char *path) {
+    char temp[512];
+    char *p = NULL;
+    size_t len;
+    
+    snprintf(temp, sizeof(temp), "%s", path);
+    len = strlen(temp);
+    
+    // Убираем trailing slash
+    if (temp[len - 1] == '/' || temp[len - 1] == '\\') {
+        temp[len - 1] = 0;
+    }
+    
+    // Создаем папки рекурсивно
+    for (p = temp + 1; *p; p++) {
+        if (*p == '/' || *p == '\\') {
+            *p = 0;
+            if (_access(temp, 00) != 0) {
+                if (_mkdir(temp) != 0 && errno != EEXIST) {
+                    return 1;
+                }
+            }
+            *p = '/';
+        }
+    }
+    
+    // Создаем финальную папку
+    if (_access(temp, 00) != 0) {
+        if (_mkdir(temp) != 0 && errno != EEXIST) {
+            return 1;
+        }
+    }
+    
+    return 0;
+}
 
 // Проверяет существование папки под репозитории
 int check_directory(char *directory_path){
@@ -12,9 +50,10 @@ int check_directory(char *directory_path){
     // Проверка существования папки
     if (_access(directory_path, 00) == 0){
         printf("> Directory exist.\n> Welcome to COO.code!\n");
+        return 0;
     } else {
         printf("> Desired directory not found. Attempt to create...\n");
-        if (_mkdir("repositories") == 0){
+        if (mkdir_recursive("repositories") == 0){
             printf(GREEN "> Directory created. Welcome to COO.code!\n" RESET);
             return 0;
         } else {
@@ -22,6 +61,7 @@ int check_directory(char *directory_path){
             return 1;
         }
     }
+    return 0;
 }
 
 // Функция для получения списка репозиториев (опционально)
@@ -46,7 +86,7 @@ int init_repo(char *repo_name) {
     printf("> Creating repository '%s'...\n", repo_name);
     
     // Создаём основную папку репозитория
-    if (_mkdir(repo_path) != 0) {
+    if (mkdir_recursive(repo_path) != 0) {
         perror(RED "[ERROR] Failed to create repository folder\n" RESET);
         return 1;
     }
@@ -54,7 +94,7 @@ int init_repo(char *repo_name) {
     // Создаём подпапку .coocode для метаданных
     char metadata_path[512];
     snprintf(metadata_path, sizeof(metadata_path), "%s/.coocode", repo_path);
-    if (_mkdir(metadata_path) != 0) {
+    if (mkdir_recursive(metadata_path) != 0) {
         perror(RED "[ERROR] Failed to create .coocode folder\n" RESET);
         return 1;
     }
@@ -62,7 +102,7 @@ int init_repo(char *repo_name) {
     // Создаём папку для коммитов
     char commits_path[512];
     snprintf(commits_path, sizeof(commits_path), "%s/.coocode/commits", metadata_path);
-    if (_mkdir(commits_path) != 0) {
+    if (mkdir_recursive(commits_path) != 0) {
         perror(RED "[ERROR] Failed to create commits folder\n" RESET);
         return 1;
     }
@@ -76,6 +116,11 @@ int init_repo(char *repo_name) {
         fprintf(info, "Created: %s\n", __DATE__);
         fclose(info);
     }
+    
+    // Создаём папку для файлов (опционально)
+    char files_path[512];
+    snprintf(files_path, sizeof(files_path), "%s/files", repo_path);
+    mkdir_recursive(files_path);
     
     printf(GREEN "> Repository '%s' created successfully!\n" RESET, repo_name);
     return 0;
@@ -109,11 +154,14 @@ int add_file(char *repo_name, char *file_path) {
         filename = file_path;  // Если нет слешей, используем весь путь
     }
     
-    // Формируем путь для копирования файла в репозиторий (только имя файла)
-    char dest_path[512];
-    snprintf(dest_path, sizeof(dest_path), "%s/%s", repo_full_path, filename);
+    // Создаём папку для файлов, если её нет
+    char files_path[512];
+    snprintf(files_path, sizeof(files_path), "%s/files", repo_full_path);
+    mkdir_recursive(files_path);
     
-    printf("> Copying file to: %s\n", dest_path);
+    // Формируем путь для копирования файла в репозиторий
+    char dest_path[512];
+    snprintf(dest_path, sizeof(dest_path), "%s/files/%s", repo_full_path, filename);
     
     // Копируем файл
     FILE *src = fopen(file_path, "rb");
@@ -138,14 +186,13 @@ int add_file(char *repo_name, char *file_path) {
     fclose(src);
     fclose(dst);
     
-    printf(GREEN "> File '%s' added to repository '%s' as '%s'\n" RESET, file_path, repo_name, filename);
     return 0;
 }
 
 // Удаляет файл в указанном репозитории
 int remove_file(char *repo_name, char *file_path) {
     char full_path[512];
-    snprintf(full_path, sizeof(full_path), "./repositories/repo_%s/%s", repo_name, file_path);
+    snprintf(full_path, sizeof(full_path), "./repositories/repo_%s/files/%s", repo_name, file_path);
     
     // Проверяем существование файла
     if (_access(full_path, 00) != 0) {
@@ -163,7 +210,7 @@ int remove_file(char *repo_name, char *file_path) {
     }
 }
 
-// Остальные функции-заглушки (временно)
+// Функции-заглушки с правильными типами возврата
 char* get_file_content(char *commit, char *file_path) {
     printf(YELLOW "[WARNING] get_file_content not implemented yet\n" RESET);
     return NULL;
