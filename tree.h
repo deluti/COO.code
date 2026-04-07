@@ -21,6 +21,7 @@ typedef struct Node{
         struct {
             struct Node **children;
             size_t child_count;
+            size_t child_capacity;
         } directory;
     };  
 } Node;
