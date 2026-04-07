@@ -291,6 +291,7 @@ int process_command_line(int argc, char *argv[]) {
             
             // Создаем репозиторий
             if (init_repo(argv[3]) == 0) {
+                printf(GREEN "Repository '%s' created successfully!\n" RESET, argv[3]);
                 strcpy(current_repo, argv[3]);
                 save_current_repo();
             } else {
@@ -355,7 +356,7 @@ int process_command_line(int argc, char *argv[]) {
         }
         
         if (remove_file(current_repo, argv[2]) == 0) {
-            
+            printf(GREEN "File removed successfully from repository '%s'!\n" RESET, current_repo);
         } else {
             printf(RED "Failed to remove file\n" RESET);
             return 1;

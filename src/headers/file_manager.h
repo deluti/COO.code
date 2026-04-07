@@ -1,52 +1,31 @@
 // Файл с функциями КУ.кода
 #include <stdio.h>
-
+#include "commit_manager.h"
 // Создаёт пустой репозиторий и возвращает начальный (пустой) коммит.
 // Старый коммит остаётся без изменений.
-int init_repo(char *repo_name){
-    printf("W.I.P.");
-    return 0;
-}
+int init_repo(char *repo_name);
 
 // Создаёт файл в указанном репозиторие. Возвращает новый коммит, в котором этот файл добавлен или обновлён.
-int add_file(char *repo_name, char *file_path){
-    printf("W.I.P.");
-    return 0;
-}
+int add_file(char *repo_name, char *file_path);
 
 // Удаляет файл в указанном репозиторие. Возвращает новый коммит, в котором указанный файл удалён.
 // Если файла не было — можно вернуть тот же коммит или новый с тем же деревом.
-int remove_file(char *repo_name, char *file_path){
-    printf("W.I.P.");
-    return 0;
-}
+int remove_file(char *repo_name, char *file_path);
 
 // Принимает коммит и путь к файлу. Возвращает содержимое файла в этой версии (строку) или NULL, если файла нет.
-int get_file_content(char *commit, char *file_path){
-    printf("W.I.P.");
-    return 0;
-}
+char* get_file_content(char *commit, char *file_path);
 
 // Принимает коммит и путь. Возвращает true/false — есть ли файл в этой версии.
-int get_file_exists(char *commit, char *file_path){
-    printf("W.I.P.");
-    return 0;
-}
+int get_file_exists(char *commit, char *file_path);
 
 // Выводит информацию об одном коммите: хеш, родительский хеш, сообщение, дату.
-int print_commit(char *commit){
-    printf("W.I.P.");
-    return 0;
-}
+int print_commit(char *commit);
 
 // Принимает любой коммит и выводит всю цепочку истории назад до начального коммита (в стиле git log).
-int print_history(char *commit){
-    printf("W.I.P.");
-    return 0;
-}
+int print_history(char *commit);
 
 // Принимает коммит и выводит список всех файлов и их хеши в этой версии (плоско или с отступами, если есть папки).
-int print_files(char *commit){
-    printf("W.I.P.");
-    return 0;
-}
+int print_files(char *commit);
+
+// Проверяет существование папки под репозитории
+int check_directory(char *directory_path);
